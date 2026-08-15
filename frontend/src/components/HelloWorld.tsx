@@ -1,180 +1,123 @@
-import { createSignal, onMount } from "solid-js";
-import { Events, WML } from "@wailsio/runtime";
-import { GreetService } from "../../bindings/changeme";
-
-// Show the actual Wails version this project was generated against.
-const wailsVersion = "v3.0.0-beta.8";
+import { createSignal, onMount, Show } from "solid-js";
+import { OpenCodeService, OpenCodeStatus } from "../../bindings/changeme";
 
 export default function HelloWorld() {
-  const [name, setName] = createSignal("");
-  const [time, setTime] = createSignal("Listening for Time event...");
+  const [status, setStatus] = createSignal<OpenCodeStatus | null>(null);
+  const [popupOpen, setPopupOpen] = createSignal(false);
+  const [checking, setChecking] = createSignal(true);
+  const [settingUp, setSettingUp] = createSignal(false);
+  const [setupMessage, setSetupMessage] = createSignal("");
 
-  let titleNameRef!: HTMLSpanElement;
-  let toastRef!: HTMLDivElement;
-  let resultRef!: HTMLSpanElement;
-  let toastTimer: ReturnType<typeof setTimeout>;
+  const isReady = () => status()?.ready ?? false;
 
-  // Crossfade the framework word in the heading ("Wails + SolidJS") to the name
-  // the user entered ("Wails + <name>"): the old word fades out while the new one
-  // fades in over the same spot.
-  function swapTitleName(newName: string) {
-    if (!titleNameRef) {
-      return;
+  async function checkStatus() {
+    setChecking(true);
+    try {
+      const result = await OpenCodeService.IsReady();
+      setStatus(result);
+    } catch (err) {
+      console.error(err);
+      setStatus({ ready: false, url: "", error: String(err) });
+    } finally {
+      setChecking(false);
     }
-    const current = titleNameRef.querySelector(".title-name-text:not(.is-outgoing)");
-    if (!current || current.textContent === newName) {
-      return;
-    }
-    const incoming = document.createElement("span");
-    incoming.className = "title-name-text is-entering";
-    incoming.textContent = newName;
-    current.classList.add("is-outgoing");
-    titleNameRef.appendChild(incoming);
-    // Force a reflow so the transitions run from the starting state.
-    void incoming.offsetWidth;
-    incoming.classList.remove("is-entering");
-    current.classList.add("is-leaving");
-    current.addEventListener("transitionend", () => current.remove(), { once: true });
   }
 
-  // Pop the toast with the message Go returned, then auto-dismiss it.
-  function showToast(message: string) {
-    if (!resultRef || !toastRef) {
-      return;
+  async function doSetup() {
+    setSettingUp(true);
+    setSetupMessage("");
+    try {
+      const result = await OpenCodeService.Setup();
+      setStatus(result);
+      if (result.ready) {
+        setSetupMessage(`Conectat la ${result.url}`);
+      } else {
+        setSetupMessage(result.error || "Setup eșuat.");
+      }
+    } catch (err) {
+      console.error(err);
+      setSetupMessage(String(err));
+    } finally {
+      setSettingUp(false);
     }
-    resultRef.innerText = message;
-    toastRef.classList.add("is-visible");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastRef?.classList.remove("is-visible"), 4000);
   }
-
-  const doGreet = () => {
-    const n = name() || "anonymous";
-    swapTitleName(n);
-    GreetService.Greet(n).then(showToast).catch(console.error);
-  };
 
   onMount(() => {
-    Events.On("time", (timeValue: { data: string }) => {
-      // On a narrow screen the full RFC1123 stamp is too wide for the footer, so
-      // show just the clock time there (matching the CSS breakpoint).
-      const full = timeValue.data;
-      const compact = (full.match(/\d{1,2}:\d{2}:\d{2}/) || [full])[0];
-      setTime(window.matchMedia("(max-width: 640px)").matches ? compact : full);
-    });
-    // Wire up data-wml-openURL links (logos + footer "Docs" link).
-    WML.Reload();
+    checkStatus();
   });
 
   return (
     <>
       <main class="container">
         <header class="brand">
-          <a class="brand-mark" data-wml-openURL="https://v3.wails.io" aria-label="Wails website">
-            <img src="/wails.png" class="brand-logo" alt="Wails logo" />
-          </a>
-          <a class="brand-badge" data-wml-openURL="https://www.solidjs.com/" aria-label="SolidJS">
-            <img src="/solid.svg" alt="SolidJS logo" />
-          </a>
+          <span class="brand-mark" aria-label="OAgent">
+            <img src="/wails.png" class="brand-logo" alt="OAgent logo" />
+          </span>
         </header>
 
         <h1 class="title">
-          <span class="title-accent">Wails +</span>{" "}
-          <span class="title-name" ref={titleNameRef}>
-            <span class="title-name-text">SolidJS</span>
-          </span>
+          <span class="title-accent">OAgent</span>
         </h1>
-        <p class="subtitle">Build beautiful cross-platform apps with Go and SolidJS.</p>
+        <p class="subtitle">Agent Orchestrator — OpenCode V2 Harness prin API.</p>
 
-        <div class="greet">
-          <div class="input-box" id="input">
-            <svg
-              class="input-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <input
-              aria-label="input"
-              class="input"
-              id="name"
-              value={name()}
-              onInput={(e) => setName(e.currentTarget.value)}
-              type="text"
-              placeholder="Your name"
-              autocomplete="off"
-            />
-            <button aria-label="greet-btn" class="btn" onClick={doGreet}>
-              Greet
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </main>
-
-      <hr class="footer-divider" />
-      <footer class="footer">
-        <span class="footer-version">{wailsVersion}</span>
-        <span class="footer-time">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span id="time">{time()}</span>
-        </span>
-        <a
-          class="footer-docs"
-          data-wml-openURL="https://v3.wails.io"
-          aria-label="Wails documentation"
+        <button
+          class="harness-btn"
+          classList={{ "is-ready": isReady() }}
+          onClick={() => setPopupOpen(!popupOpen())}
+          aria-label="Harnesses"
         >
-          Docs
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="7" y1="17" x2="17" y2="7" />
-            <polyline points="7 7 17 7 17 17" />
-          </svg>
-        </a>
-      </footer>
+          <span
+            class="harness-dot"
+            classList={{
+              "dot-green": isReady(),
+              "dot-red": !isReady() && !checking(),
+            }}
+          />
+          <span class="harness-label">
+            {checking() ? "Verific…" : isReady() ? "OpenCode" : "Harnesses"}
+          </span>
+        </button>
 
-      {/* Toast: shows the greeting returned by the Go backend (overlay, so it never
-          reflows the layout). */}
-      <div class="toast" id="toast" ref={toastRef} role="status" aria-live="polite">
-        <span class="toast-label">From Go</span>
-        <span aria-label="result" class="toast-msg" id="result" ref={resultRef}></span>
-      </div>
+        <Show when={popupOpen()}>
+          <div class="harness-popup" role="dialog" aria-label="Harnesses">
+            <div class="harness-popup-header">
+              <span>Harnesses</span>
+              <button
+                class="harness-close"
+                onClick={() => setPopupOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="harness-item">
+              <span class="harness-item-name">OpenCode2</span>
+              <Show
+                when={isReady()}
+                fallback={
+                  <button
+                    class="btn setup-btn"
+                    onClick={doSetup}
+                    disabled={settingUp()}
+                  >
+                    {settingUp() ? "Instalez…" : "Setup"}
+                  </button>
+                }
+              >
+                <span class="harness-ready-badge">
+                  <span class="harness-dot dot-green" />
+                  Online
+                </span>
+              </Show>
+            </div>
+
+            <Show when={setupMessage()}>
+              <p class="setup-message">{setupMessage()}</p>
+            </Show>
+          </div>
+        </Show>
+      </main>
     </>
   );
 }
