@@ -5,17 +5,17 @@ type NavSection = "agents" | "tasks" | "projects";
 const NAV_ITEMS: { section: NavSection; label: string; icon: string }[] = [
   {
     section: "agents",
-    label: "Agenți",
+    label: "Agents",
     icon: "M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm0 1.5c-2.67 0-8 1.34-8 4v1.5h16V13.5c0-2.66-5.33-4-8-4z",
   },
   {
     section: "tasks",
-    label: "Task-uri",
+    label: "Tasks",
     icon: "M5 2h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h1V3a1 1 0 0 1 1-1zm2 2h4V3H7v1zm-3 2v7h8V6H4z",
   },
   {
     section: "projects",
-    label: "Proiecte",
+    label: "Projects",
     icon: "M1.5 3.5A1.5 1.5 0 0 1 3 2h3l1.5 2H13a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-8z",
   },
 ];
@@ -38,11 +38,11 @@ const PROJECTS = [
   { id: "project-3", name: "CLI Tools", branch: "main", changes: 0 },
 ];
 
-export default function Sidebar() {
+export default function Sidebar(props: { width: number }) {
   const [activeSection, setActiveSection] = createSignal<NavSection>("agents");
 
   return (
-    <aside class="sidebar">
+    <aside class="sidebar" style={{ "--sidebar-w": `${props.width}px` }}>
       <div class="sidebar-section-label">Workspace</div>
 
       <nav class="sidebar-nav">
@@ -79,10 +79,10 @@ export default function Sidebar() {
 
       <div class="sidebar-section-label">
         {activeSection() === "agents"
-          ? "Agenți"
+          ? "Agents"
           : activeSection() === "tasks"
-            ? "Task-uri"
-            : "Proiecte"}
+            ? "Tasks"
+            : "Projects"}
       </div>
 
       <div class="sidebar-items">

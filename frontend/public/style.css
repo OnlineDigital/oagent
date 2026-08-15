@@ -16,6 +16,7 @@
     --topbar-h: 44px;
     --sidebar-w: 240px;
     --panel-w: 340px;
+    --resize-handle-w: 5px;
     --radius-sm: 6px;
     --radius-md: 8px;
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -712,4 +713,35 @@ button:disabled {
     padding: 10px 12px;
     border-top: 1px solid var(--border);
     margin-top: auto;
+}
+
+/* ----- Resize handles ------------------------------------------------------------ */
+.resize-handle {
+    flex: 0 0 var(--resize-handle-w);
+    width: var(--resize-handle-w);
+    cursor: col-resize;
+    background: transparent;
+    transition: background var(--transition-fast);
+    position: relative;
+    z-index: 10;
+}
+.resize-handle:hover,
+.resize-handle.is-active {
+    background: var(--accent-border);
+}
+
+.resize-handle-left {
+    margin-left: -2px;
+}
+
+.resize-handle-right {
+    margin-right: -2px;
+}
+
+body.is-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+body.is-resizing * {
+    cursor: col-resize !important;
 }

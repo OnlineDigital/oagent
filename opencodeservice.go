@@ -8,18 +8,17 @@ import (
 	"time"
 )
 
-// OpenCodeService expune către frontend verificarea statusului
-// și setup-ul serviciului OpenCode2.
+// OpenCodeService exposes status checking and OpenCode2 service setup to the frontend.
 type OpenCodeService struct{}
 
-// OpenCodeStatus descrie starea serviciului OpenCode2.
+// OpenCodeStatus describes the state of the OpenCode2 service.
 type OpenCodeStatus struct {
 	Ready bool   `json:"ready"`
 	URL   string `json:"url"`
 	Error string `json:"error"`
 }
 
-// runCommand execută o comandă și întoarce output-ul standard.
+// runCommand executes a command and returns its standard output.
 func runCommand(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	out, err := cmd.CombinedOutput()
@@ -29,7 +28,7 @@ func runCommand(ctx context.Context, name string, args ...string) (string, error
 	return strings.TrimSpace(string(out)), nil
 }
 
-// IsReady verifică dacă serviciul OpenCode2 rulează.
+// IsReady checks whether the OpenCode2 service is running.
 func (s *OpenCodeService) IsReady() OpenCodeStatus {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -47,7 +46,7 @@ func (s *OpenCodeService) IsReady() OpenCodeStatus {
 	return OpenCodeStatus{Ready: true, URL: out}
 }
 
-// Setup instalează CLI-ul OpenCode2 dacă lipsește și pornește serviciul.
+// Setup installs the OpenCode2 CLI if missing and starts the service.
 func (s *OpenCodeService) Setup() OpenCodeStatus {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -58,7 +57,7 @@ func (s *OpenCodeService) Setup() OpenCodeStatus {
 		if err != nil {
 			return OpenCodeStatus{
 				Ready: false,
-				Error: fmt.Sprintf("instalare eșuată: %s", strings.TrimSpace(string(out))),
+				Error: fmt.Sprintf("installation failed: %s", strings.TrimSpace(string(out))),
 			}
 		}
 	}
@@ -70,9 +69,9 @@ func (s *OpenCodeService) Setup() OpenCodeStatus {
 
 	out = strings.TrimSpace(out)
 	if out == "" {
-		return OpenCodeStatus{Ready: false, Error: "serviciul a pornit fără să întoarcă un URL"}
+		return OpenCodeStatus{Ready: false, Error: "service started without returning a URL"}
 	}
 
-	// Re-verificăm că serviciul răspunde.
+	// Re-check that the service is responding.
 	return s.IsReady()
 }

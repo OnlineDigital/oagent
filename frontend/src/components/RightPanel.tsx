@@ -14,18 +14,36 @@ const GIT_FILES = [
   { path: "frontend/public/style.css", status: "M" as const, lines: "+210 -180" },
 ];
 
-export default function RightPanel() {
-  const [activeTab, setActiveTab] = createSignal<PanelTab>("browser");
+export default function RightPanel(props: { width: number }) {
+  const [activeTab, setActiveTab] = createSignal<PanelTab>(readActiveTab());
+
+  function readActiveTab(): PanelTab {
+    try {
+      const raw = localStorage.getItem("oagent.panel.tab");
+      return raw === "git" ? "git" : "browser";
+    } catch {
+      return "browser";
+    }
+  }
+
+  function selectTab(tab: PanelTab) {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem("oagent.panel.tab", tab);
+    } catch {
+      // Ignore storage failures.
+    }
+  }
 
   return (
-    <aside class="right-panel">
+    <aside class="right-panel" style={{ "--panel-w": `${props.width}px` }}>
       <div class="right-panel-tabs">
         <For each={TABS}>
           {(tab) => (
             <button
               class="right-panel-tab"
               classList={{ "is-active": activeTab() === tab.id }}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               aria-selected={activeTab() === tab.id}
               role="tab"
             >

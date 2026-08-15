@@ -6,87 +6,87 @@
 
 **Creative North Star: "Precision Instruments"**
 
-OAgent arată ca un instrument de precizie pentru orchestrare: clean, dens, fără decorațiuni. Dark mode nativ, panouri definite prin contrast subtil de suprafață, un singur accent proeminent care marchează acțiunea și starea activă. Inspirat de VS Code (ierarhie de panouri, densitate, familiaritate) și Warp (accent luminos, mono pentru date, tranziții rapide).
+OAgent looks like a precision instrument for orchestration: clean, dense, no decoration. Native dark mode, panels defined through subtle surface contrast, a single prominent accent that marks action and active state. Inspired by VS Code (panel hierarchy, density, familiarity) and Warp (bright accent, mono for data, fast transitions).
 
-Interfața dispare în task: developerul vede agenți, task-uri, proiecte, git și browser fără să observe design-ul. Fiecare pixel are un job. Accent-ul apare doar acolo unde trebuie să acționezi sau să observi o stare.
+The interface disappears into the task: the developer sees agents, tasks, projects, git, and browser without noticing the design. Every pixel has a job. The accent appears only where you need to act or observe a state.
 
 **Key Characteristics:**
-- Dark, precis, dens
-- Un singur accent proeminent (default cyan), configurabil
-- Mono pentru date, sans pentru UI
-- Panouri colapsabile cu tranziții rapide (150–200ms)
-- Fără gradient text, fără glassmorphism decorativ, fără umbre inutile
+- Dark, precise, dense
+- A single prominent accent (default cyan), configurable
+- Mono for data, sans for UI
+- Collapsible panels with fast transitions (150–200ms)
+- No text gradients, no decorative glassmorphism, no unnecessary shadows
 
 ## Colors
 
-Dark, cu accent cyan. Contrast minim 4.5:1 pentru text, suprafețele se disting prin tonalitate, nu prin umbre.
+Dark, with cyan accent. Minimum 4.5:1 contrast for text; surfaces are distinguished by tonality, not shadows.
 
 ### Primary
-- **Accent Cyan** (#00d4ff): acțiuni primare, selecție activă, starea „online". Folosit cu economie — max 10% din orice ecran.
+- **Accent Cyan** (#00d4ff): primary actions, active selection, "online" state. Used sparingly — max 10% of any screen.
 
 ### Neutral
-- **Ink** (#0d1117): fundal principal
-- **Panel** (#161b22): sidebar, panouri, topbar
-- **Panel Elevated** (#1c2128): elemente hover, popup-uri, carduri
-- **Border** (#30363d): hairlines, separatori
-- **Text** (#e6edf3): text principal
-- **Muted** (#8b949e): text secundar
+- **Ink** (#0d1117): main background
+- **Panel** (#161b22): sidebar, panels, topbar
+- **Panel Elevated** (#1c2128): hover elements, popups, cards
+- **Border** (#30363d): hairlines, separators
+- **Text** (#e6edf3): main text
+- **Muted** (#8b949e): secondary text
 - **Faint** (#484f58): placeholder, disabled
 
 ### Named Rules
-**The One Accent Rule.** Accent-ul cyan apare doar pe acțiune primară, selecție curentă și starea activă. Restul interfeței e neutral.
+**The One Accent Rule.** The cyan accent appears only on primary action, current selection, and active state. The rest of the interface is neutral.
 
 ## Typography
 
 **Body Font:** System UI stack (-apple-system, "Segoe UI", Roboto)
 **Mono Font:** ui-monospace, "Cascadia Code", "SF Mono", Consolas
 
-**Character:** Sans pentru UI, mono pentru date și măsurători. Contrast clar între cele două, fără pairing decorativ.
+**Character:** Sans for UI, mono for data and measurements. Clear contrast between the two, no decorative pairing.
 
 ### Hierarchy
-- **Title** (700, 20px, 1.2): titluri de panou, heading-uri principale
-- **Body** (400, 13px, 1.5): text normal
-- **Label** (600, 11px, 0.04em, uppercase): etichete de secțiune, tab-uri
-- **Mono** (400, 12px, 1.4): date, path-uri, status, măsurători
+- **Title** (700, 20px, 1.2): panel titles, main headings
+- **Body** (400, 13px, 1.5): normal text
+- **Label** (600, 11px, 0.04em, uppercase): section labels, tabs
+- **Mono** (400, 12px, 1.4): data, paths, status, measurements
 
 ## Layout
 
-Grid strict de panouri: topbar 44px, sidebar stânga 240px, panou drept 340px, conținut central flexibil. Colapsarea panourilor e structurală — sidebar-ul și panoul dispar complet, conținutul central preia spațiul. Spacing pe o scară de 4px: 4, 8, 12, 16, 24, 32.
+Strict panel grid: topbar 44px, left sidebar 240px, right panel 340px, flexible central content. Panel collapsing is structural — the sidebar and panel disappear completely, and the central content takes the space. Spacing on a 4px scale: 4, 8, 12, 16, 24, 32.
 
 ## Elevation & Depth
 
-Fără umbre. Adâncimea e transmisă prin tonalitate: Ink → Panel → Panel Elevated. Fiecare nivel de suprafață are culoarea lui. Un singur border (1px #30363d) separă suprafețele. Hover-ul ridică tonalitatea, nu adaugă umbră.
+No shadows. Depth is conveyed through tonality: Ink → Panel → Panel Elevated. Each surface level has its own color. A single border (1px #30363d) separates surfaces. Hover raises tonality, not shadow.
 
 ## Shapes
 
-Colțuri mici, precise: 6px pentru controale mici (butoane, tab-uri), 8px pentru panouri și carduri. Pills doar pentru badge-uri de status. Fără colțuri rotunde mari, fără forme organice.
+Small, precise corners: 6px for small controls (buttons, tabs), 8px for panels and cards. Pills only for status badges. No large rounded corners, no organic shapes.
 
 ## Components
 
 ### Buttons
 - **Shape:** 6px radius
-- **Primary:** background accent, text ink, padding 6px 14px
-- **Hover / Focus:** brighten accent, focus ring 2px accent la 50% opacity
-- **Secondary / Ghost:** transparent cu border 1px #30363d, text muted, hover text
+- **Primary:** accent background, ink text, 6px 14px padding
+- **Hover / Focus:** brighten accent, 2px focus ring accent at 50% opacity
+- **Secondary / Ghost:** transparent with 1px #30363d border, muted text, hover text
 
 ### Navigation
-- Sidebar: iteme cu icon + label, hover tonal, activ cu accent subtil în stânga
-- Topbar: butoane icon transparente, hover tonal
+- Sidebar: items with icon + label, tonal hover, active with subtle accent on the left
+- Topbar: transparent icon buttons, tonal hover
 
 ### Panels
-- Background Panel, border 1px #30363d, fără umbre
-- Colapsare: panoul dispare, conținutul central se extinde
+- Panel background, 1px #30363d border, no shadows
+- Collapse: panel disappears, central content expands
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** folosi accent cyan doar pentru acțiune, selecție, stare activă
-- **Do** folosi mono pentru path-uri, status, date
-- **Do** păstra densitatea VS Code — informație cât mai multă, dar scanabilă
-- **Do** folosi tonalitate (nu umbre) pentru ierarhie de suprafețe
+- **Do** use cyan accent only for action, selection, active state
+- **Do** use mono for paths, status, data
+- **Do** keep VS Code density — as much information as possible, but scannable
+- **Do** use tonality (not shadows) for surface hierarchy
 
 ### Don't:
-- **Don't** folosi gradient text sau glassmorphism decorativ
-- **Don't** adăuga umbre sau glow
-- **Don't** folosi mai mult de un accent color
-- **Don't** pune decorațiuni pe panouri — fiecare pixel are un job
+- **Don't** use text gradients or decorative glassmorphism
+- **Don't** add shadows or glow
+- **Don't** use more than one accent color
+- **Don't** put decorations on panels — every pixel has a job

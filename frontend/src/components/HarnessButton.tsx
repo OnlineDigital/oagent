@@ -30,9 +30,9 @@ export default function HarnessButton() {
       const result = await OpenCodeService.Setup();
       setStatus(result);
       if (result.ready) {
-        setSetupMessage(`Conectat la ${result.url}`);
+        setSetupMessage(`Connected to ${result.url}`);
       } else {
-        setSetupMessage(result.error || "Setup eșuat.");
+        setSetupMessage(result.error || "Setup failed.");
       }
     } catch (err) {
       console.error(err);
@@ -75,7 +75,7 @@ export default function HarnessButton() {
           }}
         />
         <span class="harness-label">
-          {checking() ? "Verific…" : isReady() ? "OpenCode2" : "Harnesses"}
+          {checking() ? "Checking…" : isReady() ? "OpenCode2" : "Harnesses"}
         </span>
         <svg
           width="16"
@@ -119,7 +119,7 @@ export default function HarnessButton() {
             <div class="harness-item-info">
               <span class="harness-item-name">OpenCode2</span>
               <span class="harness-item-desc">
-                {isReady() ? "Serviciu activ" : "Serviciu oprit"}
+                {isReady() ? "Service active" : "Service stopped"}
               </span>
             </div>
             <Show
@@ -130,7 +130,7 @@ export default function HarnessButton() {
                   onClick={doSetup}
                   disabled={settingUp()}
                 >
-                  {settingUp() ? "Instalez…" : "Setup"}
+                  {settingUp() ? "Installing…" : "Setup"}
                 </button>
               }
             >

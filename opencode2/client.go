@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// Client este un client HTTP pentru API-ul OpenCode2 V2.
+// Client is an HTTP client for the OpenCode2 V2 API.
 type Client struct {
 	baseURL string
 	http    *http.Client
 }
 
-// NewClient creează un client nou pentru API-ul OpenCode2 V2.
+// NewClient creates a new client for the OpenCode2 V2 API.
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -24,7 +24,7 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// NewClientWithHTTP permite customizarea clientului HTTP.
+// NewClientWithHTTP allows customizing the HTTP client.
 func NewClientWithHTTP(baseURL string, hc *http.Client) *Client {
 	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: hc}
 }
