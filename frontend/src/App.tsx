@@ -1,8 +1,15 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, createMemo, onCleanup, onMount, Show } from "solid-js";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import RightPanel from "./components/RightPanel";
-import ConversationDemo from "./components/ConversationDemo";
+import Conversation from "./components/Conversation";
+import {
+  ConversationMessage,
+  OpenCodeService,
+  ProjectInfo,
+  SessionInfo,
+  SubagentInfo,
+} from "../bindings/changeme";
 
 const SIDEBAR_OPEN_KEY = "oagent.sidebar.open";
 const SIDEBAR_WIDTH_KEY = "oagent.sidebar.width";
@@ -27,11 +34,49 @@ function readNumber(key: string, fallback: number): number {
   }
 }
 
+function basename(path: string): string {
+  if (!path) return "";
+  const normalized = path.replace(/[\\/]+$/, "");
+  const parts = normalized.split(/[\\/]/);
+  return parts[parts.length - 1] || normalized;
+}
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = createSignal(readBoolean(SIDEBAR_OPEN_KEY, true));
   const [panelOpen, setPanelOpen] = createSignal(readBoolean(PANEL_OPEN_KEY, true));
   const [sidebarWidth, setSidebarWidth] = createSignal(readNumber(SIDEBAR_WIDTH_KEY, 240));
   const [panelWidth, setPanelWidth] = createSignal(readNumber(PANEL_WIDTH_KEY, 340));
+
+  const [projects, setProjects] = createSignal<ProjectInfo[]>([]);
+  const [sessions, setSessions] = createSignal<SessionInfo[]>([]);
+  const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
+  const [subagents, setSubagents] = createSignal<SubagentInfo[]>([]);
+  const [listLoading, setListLoading] = createSignal(true);
+  const [listError, setListError] = createSignal("");
+  const [detailLoading, setDetailLoading] = createSignal(false);
+  const [detailError, setDetailError] = createSignal("");
+
+  const projectName = createMemo(() => {
+    const map = new Map<string, string>();
+    for (const project of projects()) {
+      map.set(project.id, project.name || basename(project.canonical) || "Untitled");
+    }
+    return map;
+  });
+
+  const selectedSession = createMemo(() => {
+    const session = sessions().find((item) => item.id === selectedId());
+    if (!session) return null;
+    return {
+      id: session.id,
+      title: session.title || session.agent || "Untitled session",
+      project: projectName().get(session.projectId) || basename(session.directory || "") || "Untitled",
+      agent: session.agent,
+      directory: session.directory,
+      active: session.active,
+    };
+  });
 
   function persistLayout() {
     try {
@@ -65,8 +110,62 @@ export default function App() {
     }
   }
 
+  async function loadList() {
+    setListLoading(true);
+    setListError("");
+    try {
+      const [projectList, sessionList] = await Promise.all([
+        OpenCodeService.Projects(),
+        OpenCodeService.Sessions(100),
+      ]);
+      setProjects(projectList ?? []);
+      setSessions(sessionList ?? []);
+      if (!selectedId() && sessionList?.length) {
+        setSelectedId(sessionList[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+      setListError(String(err));
+    } finally {
+      setListLoading(false);
+    }
+  }
+
+  async function loadDetail(id: string) {
+    if (!id) {
+      setMessages([]);
+      setSubagents([]);
+      return;
+    }
+    setDetailLoading(true);
+    setDetailError("");
+    try {
+      const [messageList, subagentList] = await Promise.all([
+        OpenCodeService.Conversation(id),
+        OpenCodeService.Subagents(id),
+      ]);
+      setMessages(messageList ?? []);
+      setSubagents(subagentList ?? []);
+    } catch (err) {
+      console.error(err);
+      setDetailError(String(err));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function selectSession(id: string) {
+    if (id === selectedId()) return;
+    setSelectedId(id);
+    loadDetail(id);
+  }
+
   onMount(() => {
     window.addEventListener("keydown", handleKeydown);
+    loadList().then(() => {
+      const id = selectedId();
+      if (id) loadDetail(id);
+    });
   });
 
   function startSidebarResize(e: PointerEvent) {
@@ -127,7 +226,16 @@ export default function App() {
 
       <div class="app-body">
         <Show when={sidebarOpen()}>
-          <Sidebar width={sidebarWidth()} />
+          <Sidebar
+            width={sidebarWidth()}
+            projects={projects()}
+            sessions={sessions()}
+            selectedId={selectedId()}
+            loading={listLoading()}
+            error={listError()}
+            onSelect={selectSession}
+            onRetry={loadList}
+          />
           <div
             class="resize-handle resize-handle-left"
             role="separator"
@@ -138,7 +246,13 @@ export default function App() {
         </Show>
 
         <main class="main-content">
-          <ConversationDemo />
+          <Conversation
+            session={selectedSession()}
+            messages={messages()}
+            subagents={subagents()}
+            loading={detailLoading()}
+            error={detailError()}
+          />
         </main>
 
         <Show when={panelOpen()}>

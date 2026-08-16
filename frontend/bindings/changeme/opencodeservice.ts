@@ -15,6 +15,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * Conversation returns a normalized transcript for a session.
+ */
+export function Conversation(sessionID: string): $CancellablePromise<$models.ConversationMessage[] | null> {
+    return $Call.ByID(2558802331, sessionID);
+}
+
+/**
  * IsReady checks whether the OpenCode2 service is running.
  */
 export function IsReady(): $CancellablePromise<$models.OpenCodeStatus> {
@@ -22,8 +29,29 @@ export function IsReady(): $CancellablePromise<$models.OpenCodeStatus> {
 }
 
 /**
+ * Projects returns the projects known to OpenCode2.
+ */
+export function Projects(): $CancellablePromise<$models.ProjectInfo[] | null> {
+    return $Call.ByID(999490342);
+}
+
+/**
+ * Sessions returns recent OpenCode2 sessions, newest first.
+ */
+export function Sessions(limit: number): $CancellablePromise<$models.SessionInfo[] | null> {
+    return $Call.ByID(1153055889, limit);
+}
+
+/**
  * Setup installs the OpenCode2 CLI if missing and starts the service.
  */
 export function Setup(): $CancellablePromise<$models.OpenCodeStatus> {
     return $Call.ByID(3837683321);
+}
+
+/**
+ * Subagents returns child sessions spawned by a parent session.
+ */
+export function Subagents(sessionID: string): $CancellablePromise<$models.SubagentInfo[] | null> {
+    return $Call.ByID(2593731480, sessionID);
 }

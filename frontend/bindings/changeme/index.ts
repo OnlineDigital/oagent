@@ -7,5 +7,10 @@ export {
 };
 
 export type {
-    OpenCodeStatus
+    ConversationMessage,
+    OpenCodeStatus,
+    ProjectInfo,
+    SessionInfo,
+    SubagentInfo,
+    ToolCall
 } from "./models.js";

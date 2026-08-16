@@ -600,6 +600,19 @@ button:disabled {
     line-height: 1.4;
 }
 
+.conv-error-msg {
+    margin-bottom: 12px;
+    color: var(--red);
+    font-family: var(--font-mono);
+    word-break: break-word;
+}
+
+.conv-retry {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+}
+
 /* ----- Main content --------------------------------------------------------------- */
 .main-content {
     flex: 1;
@@ -855,6 +868,16 @@ button:disabled {
     flex: 0 0 auto;
 }
 
+.trace-thinking-agent {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
 .trace-thinking-spacer {
     flex: 1;
 }
@@ -1019,8 +1042,16 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
     padding: 8px 11px;
     background: var(--accent-dim);
+    cursor: pointer;
+    border: none;
+    text-align: left;
+    transition: background var(--transition-fast);
+}
+.trace-subagent-header:hover {
+    background: rgba(0, 212, 255, 0.12);
 }
 
 .trace-subagent-glyph {
@@ -1083,18 +1114,14 @@ button:disabled {
     animation: pulse 1.4s ease-in-out infinite;
 }
 
-.trace-subagent-toggle {
+.trace-subagent-chevron {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 5px;
     color: var(--accent);
-    transition: background var(--transition-fast);
-}
-.trace-subagent-toggle:hover {
-    background: var(--accent-dim);
+    flex: 0 0 auto;
 }
 
 .trace-subagent-purpose {
@@ -1134,6 +1161,17 @@ button:disabled {
     font-size: 12px;
     line-height: 1.5;
     color: var(--text);
+}
+
+.conversation-empty {
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.conversation-error {
+    color: var(--red);
 }
 
 /* ----- Right panel ---------------------------------------------------------------- */

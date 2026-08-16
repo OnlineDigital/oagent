@@ -1,121 +1,51 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { ProjectInfo, SessionInfo } from "../../bindings/changeme";
 
 type Conversation = {
   id: string;
+  projectId: string;
   project: string;
   initials: string;
   title: string;
-  branch: string;
-  status: "working" | "done";
-  durationMin: number;
-  lastActivityMin: number;
-  thread: string;
-  pinned: boolean;
+  detail: string;
+  status: "active" | "idle";
+  activityAt: number;
+  active: boolean;
 };
 
-const CONVERSATIONS: Conversation[] = [
-  {
-    id: "conv-142",
-    project: "OAgent",
-    initials: "OA",
-    title: "Refactor sidebar into a project-aware inbox",
-    branch: "oagent/sidebar-inbox",
-    status: "working",
-    durationMin: 14,
-    lastActivityMin: 4,
-    thread: "#142",
-    pinned: true,
-  },
-  {
-    id: "conv-138",
-    project: "OAgent",
-    initials: "OA",
-    title: "Fix agent task scheduling race",
-    branch: "oagent/fix-task-scheduling",
-    status: "working",
-    durationMin: 7,
-    lastActivityMin: 9,
-    thread: "#138",
-    pinned: false,
-  },
-  {
-    id: "conv-131",
-    project: "OAgent",
-    initials: "OA",
-    title: "Add browser preview to the right panel",
-    branch: "oagent/browser-preview",
-    status: "done",
-    durationMin: 22,
-    lastActivityMin: 25,
-    thread: "#131",
-    pinned: true,
-  },
-  {
-    id: "conv-119",
-    project: "OAgent",
-    initials: "OA",
-    title: "Wire OpenCode2 setup status",
-    branch: "oagent/opencode-setup",
-    status: "done",
-    durationMin: 31,
-    lastActivityMin: 47,
-    thread: "#119",
-    pinned: false,
-  },
-  {
-    id: "conv-104",
-    project: "CLI Tools",
-    initials: "CL",
-    title: "Build the auth command for the CLI",
-    branch: "cli-tools/feature/auth",
-    status: "working",
-    durationMin: 53,
-    lastActivityMin: 12,
-    thread: "#104",
-    pinned: false,
-  },
-  {
-    id: "conv-097",
-    project: "CLI Tools",
-    initials: "CL",
-    title: "Migrate config to TOML",
-    branch: "cli-tools/feature/toml",
-    status: "done",
-    durationMin: 41,
-    lastActivityMin: 68,
-    thread: "#097",
-    pinned: false,
-  },
-  {
-    id: "conv-088",
-    project: "Whales",
-    initials: "WH",
-    title: "Refactor the Whales API client",
-    branch: "whales/feature/api-client",
-    status: "working",
-    durationMin: 12,
-    lastActivityMin: 18,
-    thread: "#088",
-    pinned: false,
-  },
-  {
-    id: "conv-076",
-    project: "Whales",
-    initials: "WH",
-    title: "Add parser tests",
-    branch: "whales/feature/parser-tests",
-    status: "done",
-    durationMin: 19,
-    lastActivityMin: 82,
-    thread: "#076",
-    pinned: false,
-  },
-];
+function basename(path: string): string {
+  if (!path) return "";
+  const normalized = path.replace(/[\\/]+$/, "");
+  const parts = normalized.split(/[\\/]/);
+  return parts[parts.length - 1] || normalized;
+}
+
+function initialsFor(name: string): string {
+  const clean = name.trim();
+  if (!clean) return "??";
+  const words = clean.split(/[\s_-]+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+function relativeTime(timestamp: number): string {
+  if (!timestamp) return "—";
+  const diff = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
 
 function sortConversations(items: Conversation[]): Conversation[] {
   return [...items].sort((a, b) => {
-    if (a.status !== b.status) return a.status === "working" ? -1 : 1;
-    return a.lastActivityMin - b.lastActivityMin;
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return b.activityAt - a.activityAt;
   });
 }
 
@@ -171,7 +101,7 @@ function BranchIcon() {
   );
 }
 
-function ThreadIcon() {
+function AgentIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
@@ -185,36 +115,63 @@ function ThreadIcon() {
   );
 }
 
-function PinIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2" />
-    </svg>
-  );
-}
-
-export default function Sidebar(props: { width: number }) {
+export default function Sidebar(props: {
+  width: number;
+  projects: ProjectInfo[];
+  sessions: SessionInfo[];
+  selectedId: string | null;
+  loading: boolean;
+  error: string;
+  onSelect: (id: string) => void;
+  onRetry: () => void;
+}) {
   const [filter, setFilter] = createSignal("all");
   const [filterOpen, setFilterOpen] = createSignal(false);
   const [filterPos, setFilterPos] = createSignal({ top: 0, left: 0 });
-  const [selectedId, setSelectedId] = createSignal("conv-142");
 
-  const projects = createMemo(() => [...new Set(CONVERSATIONS.map((item) => item.project))]);
+  const projectName = createMemo(() => {
+    const map = new Map<string, string>();
+    for (const project of props.projects) {
+      const name = project.name || basename(project.canonical) || "Untitled";
+      map.set(project.id, name);
+    }
+    return map;
+  });
+
+  const conversations = createMemo<Conversation[]>(() =>
+    props.sessions.map((session) => {
+      const project = projectName().get(session.projectId) || basename(session.directory || "") || "Untitled";
+      return {
+        id: session.id,
+        projectId: session.projectId,
+        project,
+        initials: initialsFor(project),
+        title: session.title || session.agent || "Untitled session",
+        detail: basename(session.directory || ""),
+        status: session.active ? "active" : "idle",
+        activityAt: session.updatedAt || session.createdAt,
+        active: session.active,
+      };
+    }),
+  );
+
+  const filterOptions = createMemo(() => {
+    const seen = new Map<string, string>();
+    for (const conversation of conversations()) {
+      if (!seen.has(conversation.projectId)) {
+        seen.set(conversation.projectId, conversation.project);
+      }
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }));
+  });
 
   const visible = createMemo(() => {
     const selected = filter();
-    const matches = CONVERSATIONS.filter((item) => {
+    const matches = conversations().filter((item) => {
       if (selected === "all") return true;
-      if (selected === "active") return item.status === "working";
-      if (selected === "done") return item.status === "done";
-      return item.project === selected;
+      if (selected === "active") return item.active;
+      if (selected === "done") return !item.active;
+      return item.projectId === selected;
     });
     return sortConversations(matches);
   });
@@ -223,8 +180,9 @@ export default function Sidebar(props: { width: number }) {
     const selected = filter();
     if (selected === "all") return "All projects";
     if (selected === "active") return "Active";
-    if (selected === "done") return "Done";
-    return selected;
+    if (selected === "done") return "Idle";
+    const option = filterOptions().find((item) => item.id === selected);
+    return option ? option.name : selected;
   });
 
   function handleEscape(e: KeyboardEvent) {
@@ -301,21 +259,23 @@ export default function Sidebar(props: { width: number }) {
             classList={{ "is-selected": filter() === "done" }}
             onClick={() => chooseFilter("done")}
           >
-            <span>Done</span>
+            <span>Idle</span>
             <Show when={filter() === "done"}>
               <CheckIcon />
             </Show>
           </button>
-          <div class="conv-filter-divider" />
-          <For each={projects()}>
-            {(project) => (
+          <Show when={filterOptions().length > 0}>
+            <div class="conv-filter-divider" />
+          </Show>
+          <For each={filterOptions()}>
+            {(option) => (
               <button
                 class="conv-filter-option"
-                classList={{ "is-selected": filter() === project }}
-                onClick={() => chooseFilter(project)}
+                classList={{ "is-selected": filter() === option.id }}
+                onClick={() => chooseFilter(option.id)}
               >
-                <span>{project}</span>
-                <Show when={filter() === project}>
+                <span>{option.name}</span>
+                <Show when={filter() === option.id}>
                   <CheckIcon />
                 </Show>
               </button>
@@ -325,63 +285,72 @@ export default function Sidebar(props: { width: number }) {
       </Show>
 
       <div class="conv-list">
-        <For each={visible()}>
-          {(conversation) => (
-            <button
-              class="conv-item"
-              classList={{ "is-active": selectedId() === conversation.id }}
-              onClick={() => setSelectedId(conversation.id)}
-              aria-label={`${conversation.title}, ${conversation.project}`}
-              aria-pressed={selectedId() === conversation.id}
-            >
-              <div class="conv-row">
-                <span class="conv-project">
-                  <span class="conv-project-badge">{conversation.initials}</span>
-                  <span class="conv-project-name">{conversation.project}</span>
-                </span>
-                <span
-                  class="conv-status"
-                  classList={{
-                    "is-working": conversation.status === "working",
-                    "is-done": conversation.status === "done",
-                  }}
-                >
-                  <span class="conv-status-dot" />
-                  {conversation.status === "working" ? "Working" : "Done"} ·{" "}
-                  {conversation.durationMin}m
-                </span>
-              </div>
+        <Show when={props.loading}>
+          <div class="conv-empty">Loading conversations…</div>
+        </Show>
 
-              <div class="conv-row">
-                <span class="conv-title">{conversation.title}</span>
-                <span class="conv-time">{conversation.lastActivityMin}m</span>
-              </div>
-
-              <div class="conv-row">
-                <span class="conv-branch">
-                  <BranchIcon />
-                  <span class="conv-branch-name">{conversation.branch}</span>
-                </span>
-                <span class="conv-meta">
-                  <span class="conv-thread">
-                    <ThreadIcon />
-                    <span>{conversation.thread}</span>
-                  </span>
-                  <Show when={conversation.pinned}>
-                    <span class="conv-pin" aria-label="Pinned">
-                      <PinIcon />
-                    </span>
-                  </Show>
-                </span>
-              </div>
-            </button>
-          )}
-        </For>
-
-        <Show when={visible().length === 0}>
+        <Show when={!props.loading && props.error}>
           <div class="conv-empty">
-            No conversations match this filter.
+            <div class="conv-error-msg">{props.error}</div>
+            <button class="btn-ghost conv-retry" onClick={props.onRetry}>
+              Retry
+            </button>
           </div>
+        </Show>
+
+        <Show when={!props.loading && !props.error}>
+          <For each={visible()}>
+            {(conversation) => (
+              <button
+                class="conv-item"
+                classList={{ "is-active": props.selectedId === conversation.id }}
+                onClick={() => props.onSelect(conversation.id)}
+                aria-label={`${conversation.title}, ${conversation.project}`}
+                aria-pressed={props.selectedId === conversation.id}
+              >
+                <div class="conv-row">
+                  <span class="conv-project">
+                    <span class="conv-project-badge">{conversation.initials}</span>
+                    <span class="conv-project-name">{conversation.project}</span>
+                  </span>
+                  <span
+                    class="conv-status"
+                    classList={{
+                      "is-working": conversation.status === "active",
+                      "is-done": conversation.status === "idle",
+                    }}
+                  >
+                    <span class="conv-status-dot" />
+                    {conversation.status === "active" ? "Active" : "Idle"} ·{" "}
+                    {relativeTime(conversation.activityAt)}
+                  </span>
+                </div>
+
+                <div class="conv-row">
+                  <span class="conv-title">{conversation.title}</span>
+                </div>
+
+                <div class="conv-row">
+                  <span class="conv-branch">
+                    <BranchIcon />
+                    <span class="conv-branch-name">
+                      {conversation.detail || conversation.project}
+                    </span>
+                  </span>
+                  <span class="conv-meta">
+                    <span class="conv-thread">
+                      <AgentIcon />
+                      <span>{conversation.status === "active" ? "Live" : "Recent"}</span>
+                    </span>
+                  </span>
+                </div>
+              </button>
+            )}
+          </For>
+
+          <Show when={visible().length === 0}>
+            <div class="conv-empty">No conversations match this filter.</div>
+          </Show>
         </Show>
       </div>
     </aside>
