@@ -1,158 +1,389 @@
-import { For, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 
-type NavSection = "agents" | "tasks" | "projects";
+type Conversation = {
+  id: string;
+  project: string;
+  initials: string;
+  title: string;
+  branch: string;
+  status: "working" | "done";
+  durationMin: number;
+  lastActivityMin: number;
+  thread: string;
+  pinned: boolean;
+};
 
-const NAV_ITEMS: { section: NavSection; label: string; icon: string }[] = [
+const CONVERSATIONS: Conversation[] = [
   {
-    section: "agents",
-    label: "Agents",
-    icon: "M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm0 1.5c-2.67 0-8 1.34-8 4v1.5h16V13.5c0-2.66-5.33-4-8-4z",
+    id: "conv-142",
+    project: "OAgent",
+    initials: "OA",
+    title: "Refactor sidebar into a project-aware inbox",
+    branch: "oagent/sidebar-inbox",
+    status: "working",
+    durationMin: 14,
+    lastActivityMin: 4,
+    thread: "#142",
+    pinned: true,
   },
   {
-    section: "tasks",
-    label: "Tasks",
-    icon: "M5 2h6a1 1 0 0 1 1 1v1h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h1V3a1 1 0 0 1 1-1zm2 2h4V3H7v1zm-3 2v7h8V6H4z",
+    id: "conv-138",
+    project: "OAgent",
+    initials: "OA",
+    title: "Fix agent task scheduling race",
+    branch: "oagent/fix-task-scheduling",
+    status: "working",
+    durationMin: 7,
+    lastActivityMin: 9,
+    thread: "#138",
+    pinned: false,
   },
   {
-    section: "projects",
-    label: "Projects",
-    icon: "M1.5 3.5A1.5 1.5 0 0 1 3 2h3l1.5 2H13a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-8z",
+    id: "conv-131",
+    project: "OAgent",
+    initials: "OA",
+    title: "Add browser preview to the right panel",
+    branch: "oagent/browser-preview",
+    status: "done",
+    durationMin: 22,
+    lastActivityMin: 25,
+    thread: "#131",
+    pinned: true,
+  },
+  {
+    id: "conv-119",
+    project: "OAgent",
+    initials: "OA",
+    title: "Wire OpenCode2 setup status",
+    branch: "oagent/opencode-setup",
+    status: "done",
+    durationMin: 31,
+    lastActivityMin: 47,
+    thread: "#119",
+    pinned: false,
+  },
+  {
+    id: "conv-104",
+    project: "CLI Tools",
+    initials: "CL",
+    title: "Build the auth command for the CLI",
+    branch: "cli-tools/feature/auth",
+    status: "working",
+    durationMin: 53,
+    lastActivityMin: 12,
+    thread: "#104",
+    pinned: false,
+  },
+  {
+    id: "conv-097",
+    project: "CLI Tools",
+    initials: "CL",
+    title: "Migrate config to TOML",
+    branch: "cli-tools/feature/toml",
+    status: "done",
+    durationMin: 41,
+    lastActivityMin: 68,
+    thread: "#097",
+    pinned: false,
+  },
+  {
+    id: "conv-088",
+    project: "Whales",
+    initials: "WH",
+    title: "Refactor the Whales API client",
+    branch: "whales/feature/api-client",
+    status: "working",
+    durationMin: 12,
+    lastActivityMin: 18,
+    thread: "#088",
+    pinned: false,
+  },
+  {
+    id: "conv-076",
+    project: "Whales",
+    initials: "WH",
+    title: "Add parser tests",
+    branch: "whales/feature/parser-tests",
+    status: "done",
+    durationMin: 19,
+    lastActivityMin: 82,
+    thread: "#076",
+    pinned: false,
   },
 ];
 
-const AGENTS = [
-  { id: "agent-1", name: "Agent Alpha", status: "running" as const, task: "Refactor API" },
-  { id: "agent-2", name: "Agent Beta", status: "idle" as const, task: null },
-  { id: "agent-3", name: "Agent Gamma", status: "running" as const, task: "Fix bug #42" },
-];
+function sortConversations(items: Conversation[]): Conversation[] {
+  return [...items].sort((a, b) => {
+    if (a.status !== b.status) return a.status === "working" ? -1 : 1;
+    return a.lastActivityMin - b.lastActivityMin;
+  });
+}
 
-const TASKS = [
-  { id: "task-1", name: "Refactor API", status: "in-progress" as const, agent: "Agent Alpha" },
-  { id: "task-2", name: "Fix bug #42", status: "in-progress" as const, agent: "Agent Gamma" },
-  { id: "task-3", name: "Deploy staging", status: "queued" as const, agent: null },
-];
-
-const PROJECTS = [
-  { id: "project-1", name: "OAgent", branch: "main", changes: 3 },
-  { id: "project-2", name: "Whales", branch: "feature/setup", changes: 7 },
-  { id: "project-3", name: "CLI Tools", branch: "main", changes: 0 },
-];
-
-export default function Sidebar(props: { width: number }) {
-  const [activeSection, setActiveSection] = createSignal<NavSection>("agents");
-
+function FolderIcon() {
   return (
-    <aside class="sidebar" style={{ "--sidebar-w": `${props.width}px` }}>
-      <div class="sidebar-section-label">Workspace</div>
-
-      <nav class="sidebar-nav">
-        <For each={NAV_ITEMS}>
-          {(item) => (
-            <button
-              class="sidebar-nav-btn"
-              classList={{ "is-active": activeSection() === item.section }}
-              onClick={() => setActiveSection(item.section)}
-              aria-label={item.label}
-              aria-current={activeSection() === item.section ? "page" : undefined}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                class="sidebar-nav-icon"
-              >
-                <path
-                  d={item.icon}
-                  fill="currentColor"
-                  fill-rule="evenodd"
-                  clip-rule="evenodd"
-                />
-              </svg>
-              <span class="sidebar-nav-label">{item.label}</span>
-            </button>
-          )}
-        </For>
-      </nav>
-
-      <div class="sidebar-divider" />
-
-      <div class="sidebar-section-label">
-        {activeSection() === "agents"
-          ? "Agents"
-          : activeSection() === "tasks"
-            ? "Tasks"
-            : "Projects"}
-      </div>
-
-      <div class="sidebar-items">
-        <ShowSection section={activeSection()} />
-      </div>
-    </aside>
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 3.5A1.5 1.5 0 0 1 3 2h3l1.5 2H13a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5v-8z"
+        fill="currentColor"
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+      />
+    </svg>
   );
 }
 
-function ShowSection(props: { section: NavSection }) {
-  switch (props.section) {
-    case "agents":
-      return (
-        <For each={AGENTS}>
-          {(agent) => (
-            <button class="sidebar-item" aria-label={agent.name}>
-              <span
-                class="agent-status-dot"
-                classList={{
-                  "dot-online": agent.status === "running",
-                  "dot-idle": agent.status === "idle",
-                }}
-              />
-              <span class="sidebar-item-main">
-                <span class="sidebar-item-name">{agent.name}</span>
-                {agent.task && (
-                  <span class="sidebar-item-sub">{agent.task}</span>
-                )}
-              </span>
-            </button>
-          )}
-        </For>
-      );
-    case "tasks":
-      return (
-        <For each={TASKS}>
-          {(task) => (
-            <button class="sidebar-item" aria-label={task.name}>
-              <span
-                class="task-status-dot"
-                classList={{
-                  "dot-online": task.status === "in-progress",
-                  "dot-idle": task.status === "queued",
-                }}
-              />
-              <span class="sidebar-item-main">
-                <span class="sidebar-item-name">{task.name}</span>
-                {task.agent && (
-                  <span class="sidebar-item-sub">{task.agent}</span>
-                )}
-              </span>
-            </button>
-          )}
-        </For>
-      );
-    case "projects":
-      return (
-        <For each={PROJECTS}>
-          {(project) => (
-            <button class="sidebar-item" aria-label={project.name}>
-              <span class="sidebar-item-main">
-                <span class="sidebar-item-name">{project.name}</span>
-                <span class="sidebar-item-sub">
-                  {project.branch}
-                  {project.changes > 0 && ` · ${project.changes} changes`}
-                </span>
-              </span>
-            </button>
-          )}
-        </For>
-      );
+function ChevronIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3 8l3 3 7-7"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BranchIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <line x1="6" y1="3" x2="6" y2="15" stroke="currentColor" stroke-width="2" />
+      <circle cx="18" cy="6" r="3" stroke="currentColor" stroke-width="2" />
+      <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="2" />
+      <path d="M18 9a9 9 0 0 1-9 9" stroke="currentColor" stroke-width="2" />
+    </svg>
+  );
+}
+
+function ThreadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2" />
+    </svg>
+  );
+}
+
+export default function Sidebar(props: { width: number }) {
+  const [filter, setFilter] = createSignal("all");
+  const [filterOpen, setFilterOpen] = createSignal(false);
+  const [filterPos, setFilterPos] = createSignal({ top: 0, left: 0 });
+  const [selectedId, setSelectedId] = createSignal("conv-142");
+
+  const projects = createMemo(() => [...new Set(CONVERSATIONS.map((item) => item.project))]);
+
+  const visible = createMemo(() => {
+    const selected = filter();
+    const matches = CONVERSATIONS.filter((item) => {
+      if (selected === "all") return true;
+      if (selected === "active") return item.status === "working";
+      if (selected === "done") return item.status === "done";
+      return item.project === selected;
+    });
+    return sortConversations(matches);
+  });
+
+  const filterLabel = createMemo(() => {
+    const selected = filter();
+    if (selected === "all") return "All projects";
+    if (selected === "active") return "Active";
+    if (selected === "done") return "Done";
+    return selected;
+  });
+
+  function handleEscape(e: KeyboardEvent) {
+    if (e.key === "Escape" && filterOpen()) {
+      setFilterOpen(false);
+    }
   }
+
+  onMount(() => {
+    document.addEventListener("keydown", handleEscape);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener("keydown", handleEscape);
+  });
+
+  function toggleFilter(e: MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setFilterPos({ top: rect.bottom + 4, left: rect.left });
+    setFilterOpen((open) => !open);
+  }
+
+  function chooseFilter(next: string) {
+    setFilter(next);
+    setFilterOpen(false);
+  }
+
+  return (
+    <aside class="sidebar" style={{ "--sidebar-w": `${props.width}px` }}>
+      <div class="sidebar-header">
+        <span class="sidebar-header-title">Conversations</span>
+        <button
+          class="conv-filter-btn"
+          onClick={toggleFilter}
+          aria-label="Filter conversations"
+          aria-expanded={filterOpen()}
+        >
+          <FolderIcon />
+          <span class="conv-filter-label">{filterLabel()}</span>
+          <span class="conv-filter-chevron" classList={{ "is-open": filterOpen() }}>
+            <ChevronIcon />
+          </span>
+        </button>
+      </div>
+
+      <Show when={filterOpen()}>
+        <div class="conv-filter-backdrop" onClick={() => setFilterOpen(false)} />
+        <div
+          class="conv-filter-popup"
+          style={{ top: `${filterPos().top}px`, left: `${filterPos().left}px` }}
+        >
+          <button
+            class="conv-filter-option"
+            classList={{ "is-selected": filter() === "all" }}
+            onClick={() => chooseFilter("all")}
+          >
+            <span>All projects</span>
+            <Show when={filter() === "all"}>
+              <CheckIcon />
+            </Show>
+          </button>
+          <button
+            class="conv-filter-option"
+            classList={{ "is-selected": filter() === "active" }}
+            onClick={() => chooseFilter("active")}
+          >
+            <span>Active</span>
+            <Show when={filter() === "active"}>
+              <CheckIcon />
+            </Show>
+          </button>
+          <button
+            class="conv-filter-option"
+            classList={{ "is-selected": filter() === "done" }}
+            onClick={() => chooseFilter("done")}
+          >
+            <span>Done</span>
+            <Show when={filter() === "done"}>
+              <CheckIcon />
+            </Show>
+          </button>
+          <div class="conv-filter-divider" />
+          <For each={projects()}>
+            {(project) => (
+              <button
+                class="conv-filter-option"
+                classList={{ "is-selected": filter() === project }}
+                onClick={() => chooseFilter(project)}
+              >
+                <span>{project}</span>
+                <Show when={filter() === project}>
+                  <CheckIcon />
+                </Show>
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      <div class="conv-list">
+        <For each={visible()}>
+          {(conversation) => (
+            <button
+              class="conv-item"
+              classList={{ "is-active": selectedId() === conversation.id }}
+              onClick={() => setSelectedId(conversation.id)}
+              aria-label={`${conversation.title}, ${conversation.project}`}
+              aria-pressed={selectedId() === conversation.id}
+            >
+              <div class="conv-row">
+                <span class="conv-project">
+                  <span class="conv-project-badge">{conversation.initials}</span>
+                  <span class="conv-project-name">{conversation.project}</span>
+                </span>
+                <span
+                  class="conv-status"
+                  classList={{
+                    "is-working": conversation.status === "working",
+                    "is-done": conversation.status === "done",
+                  }}
+                >
+                  <span class="conv-status-dot" />
+                  {conversation.status === "working" ? "Working" : "Done"} ·{" "}
+                  {conversation.durationMin}m
+                </span>
+              </div>
+
+              <div class="conv-row">
+                <span class="conv-title">{conversation.title}</span>
+                <span class="conv-time">{conversation.lastActivityMin}m</span>
+              </div>
+
+              <div class="conv-row">
+                <span class="conv-branch">
+                  <BranchIcon />
+                  <span class="conv-branch-name">{conversation.branch}</span>
+                </span>
+                <span class="conv-meta">
+                  <span class="conv-thread">
+                    <ThreadIcon />
+                    <span>{conversation.thread}</span>
+                  </span>
+                  <Show when={conversation.pinned}>
+                    <span class="conv-pin" aria-label="Pinned">
+                      <PinIcon />
+                    </span>
+                  </Show>
+                </span>
+              </div>
+            </button>
+          )}
+        </For>
+
+        <Show when={visible().length === 0}>
+          <div class="conv-empty">
+            No conversations match this filter.
+          </div>
+        </Show>
+      </div>
+    </aside>
+  );
 }

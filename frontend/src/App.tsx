@@ -2,6 +2,7 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import RightPanel from "./components/RightPanel";
+import ConversationDemo from "./components/ConversationDemo";
 
 const SIDEBAR_OPEN_KEY = "oagent.sidebar.open";
 const SIDEBAR_WIDTH_KEY = "oagent.sidebar.width";
@@ -137,27 +138,7 @@ export default function App() {
         </Show>
 
         <main class="main-content">
-          <div class="main-header">
-            <h1 class="main-title">Orchestration</h1>
-            <p class="main-subtitle">
-              Coordinate agents, tasks, and projects from a single interface.
-            </p>
-          </div>
-
-          <section class="main-cards">
-            <div class="stat-card">
-              <span class="stat-value">3</span>
-              <span class="stat-label">Active agents</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-value">2</span>
-              <span class="stat-label">Tasks in progress</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-value">3</span>
-              <span class="stat-label">Projects</span>
-            </div>
-          </section>
+          <ConversationDemo />
         </main>
 
         <Show when={panelOpen()}>
