@@ -4,6 +4,7 @@ import {
   SubagentInfo,
   ToolCall,
 } from "../../bindings/changeme";
+import Markdown from "./Markdown";
 
 type SessionContext = {
   id: string;
@@ -70,7 +71,7 @@ function ThinkingBlock(props: { text: string; agent?: string }) {
         <Chevron open={open()} />
       </button>
       <Show when={open()}>
-        <p class="trace-thinking-text">{props.text}</p>
+        <Markdown class="trace-thinking-text" text={props.text} />
       </Show>
     </div>
   );
@@ -226,7 +227,9 @@ function SubagentPanel(props: { subagent: SubagentInfo }) {
 
       <Show when={open()}>
         <Show when={purpose()}>
-          <div class="trace-subagent-purpose">{purpose()}</div>
+          <div class="trace-subagent-purpose">
+            <Markdown text={purpose()} />
+          </div>
         </Show>
         <div class="trace-subagent-steps">
           <For each={messages()}>
@@ -256,7 +259,7 @@ function SubagentPanel(props: { subagent: SubagentInfo }) {
               </svg>
               Result returned to OAgent
             </div>
-            <p class="trace-subagent-result-text">{result()}</p>
+            <Markdown class="trace-subagent-result-text" text={result()} />
           </div>
         </Show>
       </Show>
@@ -269,7 +272,7 @@ function UserMessage(props: { message: ConversationMessage }) {
     <div class="trace-entry trace-entry-user">
       <div class="trace-msg">
         <div class="trace-msg-label">You</div>
-        <p class="trace-msg-text">{props.message.text}</p>
+        <Markdown class="trace-msg-text" text={props.message.text} />
       </div>
     </div>
   );
@@ -288,7 +291,7 @@ function AssistantMessage(props: { message: ConversationMessage }) {
           {(tool) => <ToolCallCard tool={tool} />}
         </For>
         <Show when={props.message.text}>
-          <p class="trace-msg-text">{props.message.text}</p>
+          <Markdown class="trace-msg-text" text={props.message.text} />
         </Show>
       </div>
     </div>
@@ -301,7 +304,7 @@ function SystemMessage(props: { message: ConversationMessage }) {
     <div class="trace-entry trace-entry-system">
       <div class="trace-msg">
         <div class="trace-msg-label">{label}</div>
-        <p class="trace-msg-text">{props.message.text}</p>
+        <Markdown class="trace-msg-text" text={props.message.text} />
       </div>
     </div>
   );
