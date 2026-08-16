@@ -3,6 +3,7 @@ import { ProjectInfo, SessionInfo } from "../../bindings/changeme";
 
 type Conversation = {
   id: string;
+  parentId: string;
   projectId: string;
   project: string;
   initials: string;
@@ -40,6 +41,25 @@ function relativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+const FILTER_STORAGE_KEY = "oagent.sidebar.filter";
+
+function readFilter(): string {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    return raw || "all";
+  } catch {
+    return "all";
+  }
+}
+
+function persistFilter(value: string) {
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, value);
+  } catch {
+    // Ignore storage failures; the filter just won't persist.
+  }
 }
 
 function sortConversations(items: Conversation[]): Conversation[] {
@@ -125,7 +145,7 @@ export default function Sidebar(props: {
   onSelect: (id: string) => void;
   onRetry: () => void;
 }) {
-  const [filter, setFilter] = createSignal("all");
+  const [filter, setFilter] = createSignal(readFilter());
   const [filterOpen, setFilterOpen] = createSignal(false);
   const [filterPos, setFilterPos] = createSignal({ top: 0, left: 0 });
 
@@ -143,6 +163,7 @@ export default function Sidebar(props: {
       const project = projectName().get(session.projectId) || basename(session.directory || "") || "Untitled";
       return {
         id: session.id,
+        parentId: session.parentId || "",
         projectId: session.projectId,
         project,
         initials: initialsFor(project),
@@ -155,9 +176,24 @@ export default function Sidebar(props: {
     }),
   );
 
+  const subagentsFor = createMemo(() => {
+    const map = new Map<string, Conversation[]>();
+    for (const conversation of conversations()) {
+      if (!conversation.parentId) continue;
+      const list = map.get(conversation.parentId) || [];
+      list.push(conversation);
+      map.set(conversation.parentId, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.activityAt - b.activityAt);
+    }
+    return map;
+  });
+
   const filterOptions = createMemo(() => {
     const seen = new Map<string, string>();
     for (const conversation of conversations()) {
+      if (conversation.parentId) continue;
       if (!seen.has(conversation.projectId)) {
         seen.set(conversation.projectId, conversation.project);
       }
@@ -168,6 +204,7 @@ export default function Sidebar(props: {
   const visible = createMemo(() => {
     const selected = filter();
     const matches = conversations().filter((item) => {
+      if (item.parentId) return false;
       if (selected === "all") return true;
       if (selected === "active") return item.active;
       if (selected === "done") return !item.active;
@@ -207,6 +244,7 @@ export default function Sidebar(props: {
 
   function chooseFilter(next: string) {
     setFilter(next);
+    persistFilter(next);
     setFilterOpen(false);
   }
 
@@ -301,50 +339,79 @@ export default function Sidebar(props: {
         <Show when={!props.loading && !props.error}>
           <For each={visible()}>
             {(conversation) => (
-              <button
-                class="conv-item"
-                classList={{ "is-active": props.selectedId === conversation.id }}
-                onClick={() => props.onSelect(conversation.id)}
-                aria-label={`${conversation.title}, ${conversation.project}`}
-                aria-pressed={props.selectedId === conversation.id}
-              >
-                <div class="conv-row">
-                  <span class="conv-project">
-                    <span class="conv-project-badge">{conversation.initials}</span>
-                    <span class="conv-project-name">{conversation.project}</span>
-                  </span>
-                  <span
-                    class="conv-status"
-                    classList={{
-                      "is-working": conversation.status === "active",
-                      "is-done": conversation.status === "idle",
-                    }}
-                  >
-                    <span class="conv-status-dot" />
-                    {conversation.status === "active" ? "Active" : "Idle"} ·{" "}
-                    {relativeTime(conversation.activityAt)}
-                  </span>
-                </div>
-
-                <div class="conv-row">
-                  <span class="conv-title">{conversation.title}</span>
-                </div>
-
-                <div class="conv-row">
-                  <span class="conv-branch">
-                    <BranchIcon />
-                    <span class="conv-branch-name">
-                      {conversation.detail || conversation.project}
+              <>
+                <button
+                  class="conv-item"
+                  classList={{ "is-active": props.selectedId === conversation.id }}
+                  onClick={() => props.onSelect(conversation.id)}
+                  aria-label={`${conversation.title}, ${conversation.project}`}
+                  aria-pressed={props.selectedId === conversation.id}
+                >
+                  <div class="conv-row">
+                    <span class="conv-project">
+                      <span class="conv-project-badge">{conversation.initials}</span>
+                      <span class="conv-project-name">{conversation.project}</span>
                     </span>
-                  </span>
-                  <span class="conv-meta">
-                    <span class="conv-thread">
-                      <AgentIcon />
-                      <span>{conversation.status === "active" ? "Live" : "Recent"}</span>
+                    <span
+                      class="conv-status"
+                      classList={{
+                        "is-working": conversation.status === "active",
+                        "is-done": conversation.status === "idle",
+                      }}
+                    >
+                      <span class="conv-status-dot" />
+                      {conversation.status === "active" ? "Active" : "Idle"} ·{" "}
+                      {relativeTime(conversation.activityAt)}
                     </span>
-                  </span>
-                </div>
-              </button>
+                  </div>
+
+                  <div class="conv-row">
+                    <span class="conv-title">{conversation.title}</span>
+                  </div>
+
+                  <div class="conv-row">
+                    <span class="conv-branch">
+                      <BranchIcon />
+                      <span class="conv-branch-name">
+                        {conversation.detail || conversation.project}
+                      </span>
+                    </span>
+                    <span class="conv-meta">
+                      <span class="conv-thread">
+                        <AgentIcon />
+                        <span>{conversation.status === "active" ? "Live" : "Recent"}</span>
+                      </span>
+                    </span>
+                  </div>
+                </button>
+
+                <Show when={subagentsFor().get(conversation.id)?.length}>
+                  <div class="conv-subagents">
+                    <For each={subagentsFor().get(conversation.id)!}>
+                      {(subagent) => (
+                        <button
+                          class="conv-subagent"
+                          classList={{ "is-active": props.selectedId === subagent.id }}
+                          onClick={() => props.onSelect(subagent.id)}
+                          aria-label={`${subagent.title}, subagent`}
+                          aria-pressed={props.selectedId === subagent.id}
+                        >
+                          <span class="conv-subagent-rail" />
+                          <AgentIcon />
+                          <span class="conv-subagent-title">{subagent.title || "Subagent"}</span>
+                          <span
+                            class="conv-subagent-dot"
+                            classList={{
+                              "is-working": subagent.status === "active",
+                              "is-done": subagent.status === "idle",
+                            }}
+                          />
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+              </>
             )}
           </For>
 
