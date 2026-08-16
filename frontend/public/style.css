@@ -92,7 +92,7 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0 8px;
+    padding: 0 0 0 8px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     --wails-draggable: drag;
@@ -143,6 +143,31 @@ button:disabled {
 
 .topbar-spacer {
     flex: 1;
+}
+
+/* Windows-style caption buttons, flush with the top/right window edges. */
+.window-controls {
+    --wails-draggable: no-drag;
+    display: flex;
+    align-self: stretch;
+    margin-left: 4px;
+}
+
+.window-control-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    color: var(--muted);
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+.window-control-btn:hover {
+    background: var(--panel-elevated);
+    color: var(--text);
+}
+.window-control-close:hover {
+    background: #e81123;
+    color: #ffffff;
 }
 
 /* ----- Harness button -------------------------------------------------------- */
