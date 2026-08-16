@@ -8,9 +8,13 @@ export {
 
 export type {
     ConversationMessage,
+    HarnessInfo,
+    McpInfo,
     OpenCodeStatus,
+    PluginInfo,
     ProjectInfo,
     SessionInfo,
+    SkillInfo,
     SubagentInfo,
     ToolCall
 } from "./models.js";

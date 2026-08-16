@@ -21,12 +21,40 @@ export interface ConversationMessage {
 }
 
 /**
+ * HarnessInfo describes one selectable harness or device.
+ */
+export interface HarnessInfo {
+    "id": string;
+    "name": string;
+    "description"?: string;
+    "local": boolean;
+    "online": boolean;
+}
+
+/**
+ * McpInfo describes one configured MCP server.
+ */
+export interface McpInfo {
+    "name": string;
+    "status": string;
+    "active": boolean;
+}
+
+/**
  * OpenCodeStatus describes the state of the OpenCode2 service.
  */
 export interface OpenCodeStatus {
     "ready": boolean;
     "url": string;
     "error": string;
+}
+
+/**
+ * PluginInfo describes one plugin and whether it is currently enabled.
+ */
+export interface PluginInfo {
+    "id": string;
+    "active": boolean;
 }
 
 /**
@@ -53,6 +81,17 @@ export interface SessionInfo {
     "subpath"?: string;
     "createdAt": number;
     "updatedAt": number;
+    "active": boolean;
+}
+
+/**
+ * SkillInfo describes one loaded skill.
+ */
+export interface SkillInfo {
+    "id": string;
+    "name": string;
+    "description"?: string;
+    "location"?: string;
     "active": boolean;
 }
 

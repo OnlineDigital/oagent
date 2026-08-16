@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,6 +24,37 @@ type OpenCodeStatus struct {
 	Ready bool   `json:"ready"`
 	URL   string `json:"url"`
 	Error string `json:"error"`
+}
+
+// HarnessInfo describes one selectable harness or device.
+type HarnessInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Local       bool   `json:"local"`
+	Online      bool   `json:"online"`
+}
+
+// McpInfo describes one configured MCP server.
+type McpInfo struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Active bool   `json:"active"`
+}
+
+// PluginInfo describes one plugin and whether it is currently enabled.
+type PluginInfo struct {
+	ID     string `json:"id"`
+	Active bool   `json:"active"`
+}
+
+// SkillInfo describes one loaded skill.
+type SkillInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Location    string `json:"location,omitempty"`
+	Active      bool   `json:"active"`
 }
 
 // SessionInfo is a frontend-friendly projection of an OpenCode2 session.
@@ -141,6 +174,449 @@ func (s *OpenCodeService) Setup() OpenCodeStatus {
 
 	// Re-check that the service is responding.
 	return s.IsReady()
+}
+
+// Harnesses returns the selectable harnesses/devices, with the local device first.
+func (s *OpenCodeService) Harnesses() ([]HarnessInfo, error) {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = "Local device"
+	}
+
+	status := s.IsReady()
+	return []HarnessInfo{
+		{
+			ID:          "local",
+			Name:        "opencode2",
+			Description: hostname,
+			Local:       true,
+			Online:      status.Ready,
+		},
+	}, nil
+}
+
+// McpServers returns configured MCP servers and their connection status.
+func (s *OpenCodeService) McpServers() ([]McpInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client, err := s.serviceClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := client.V2McpList(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	data, _ := raw["data"].([]interface{})
+	servers := make([]McpInfo, 0, len(data))
+	for _, item := range data {
+		b, err := json.Marshal(item)
+		if err != nil {
+			continue
+		}
+		var mcp struct {
+			Name   string      `json:"name"`
+			Status interface{} `json:"status"`
+		}
+		if err := json.Unmarshal(b, &mcp); err != nil {
+			continue
+		}
+
+		status := "unknown"
+		if statusMap, ok := mcp.Status.(map[string]interface{}); ok {
+			status = asString(statusMap["status"])
+		}
+
+		servers = append(servers, McpInfo{
+			Name:   mcp.Name,
+			Status: status,
+			Active: status == "connected",
+		})
+	}
+
+	return servers, nil
+}
+
+// ToggleMcp connects or disconnects an MCP server.
+func (s *OpenCodeService) ToggleMcp(server string, enable bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	client, err := s.serviceClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	if enable {
+		_, err = client.V2McpConnect(ctx, server, nil)
+	} else {
+		_, err = client.V2McpDisconnect(ctx, server, nil)
+	}
+	return err
+}
+
+// Plugins returns configured plugins and whether each one is currently enabled.
+func (s *OpenCodeService) Plugins() ([]PluginInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client, err := s.serviceClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := client.V2PluginList(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	active := map[string]bool{}
+	if data, ok := raw["data"].([]interface{}); ok {
+		for _, item := range data {
+			if m, ok := item.(map[string]interface{}); ok {
+				if id := asString(m["id"]); id != "" {
+					active[id] = true
+				}
+			}
+		}
+	}
+
+	configured := s.configuredPlugins()
+	seen := map[string]bool{}
+	plugins := make([]PluginInfo, 0, len(configured)+len(active))
+
+	for _, id := range configured {
+		seen[id] = true
+		plugins = append(plugins, PluginInfo{ID: id, Active: active[id]})
+	}
+	for id := range active {
+		if seen[id] {
+			continue
+		}
+		plugins = append(plugins, PluginInfo{ID: id, Active: true})
+	}
+
+	return plugins, nil
+}
+
+// TogglePlugin enables or disables a plugin in the user config.
+func (s *OpenCodeService) TogglePlugin(id string, enable bool) error {
+	return updatePluginConfig(id, enable)
+}
+
+// Skills returns skills loaded by OpenCode2.
+func (s *OpenCodeService) Skills() ([]SkillInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client, err := s.serviceClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := client.V2SkillList(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	denied := s.deniedSkills()
+
+	data, _ := raw["data"].([]interface{})
+	skills := make([]SkillInfo, 0, len(data))
+	for _, item := range data {
+		b, err := json.Marshal(item)
+		if err != nil {
+			continue
+		}
+		var skill SkillInfo
+		if err := json.Unmarshal(b, &skill); err != nil {
+			continue
+		}
+		skill.Active = !denied[skill.ID]
+		skills = append(skills, skill)
+	}
+
+	return skills, nil
+}
+
+// ToggleSkill enables or disables a skill via permission rules.
+func (s *OpenCodeService) ToggleSkill(id string, enable bool) error {
+	return updateSkillPermission(id, enable)
+}
+
+// deniedSkills returns skill IDs denied by the active OpenCode config.
+func (s *OpenCodeService) deniedSkills() map[string]bool {
+	denied := map[string]bool{}
+	for _, config := range readOpenCodeConfigs() {
+		permissions := config.Permissions
+		if agentRaw, ok := config.Raw["agents"].(map[string]interface{}); ok {
+			for _, agentValue := range agentRaw {
+				agentMap, ok := agentValue.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if list, ok := agentMap["permissions"].([]interface{}); ok {
+					permissions = append(permissions, list...)
+				}
+			}
+		}
+
+		for _, rule := range permissions {
+			if !isSkillRule(rule, "deny") {
+				continue
+			}
+			resource := ruleResource(rule)
+			if resource == "" {
+				continue
+			}
+			if resource == "*" {
+				for _, id := range config.SkillIDs {
+					denied[id] = true
+				}
+				continue
+			}
+			for _, id := range config.SkillIDs {
+				if matchWildcard(resource, id) {
+					denied[id] = true
+				}
+			}
+		}
+	}
+	return denied
+}
+
+// openCodeConfig is a flattened view of one OpenCode config document.
+type openCodeConfig struct {
+	Path        string
+	Raw         map[string]interface{}
+	Permissions []interface{}
+	SkillIDs    []string
+}
+
+func readOpenCodeConfigs() []openCodeConfig {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	paths := []string{
+		filepath.Join(home, ".config", "opencode", "opencode.json"),
+		filepath.Join(home, ".opencode", "opencode.json"),
+	}
+
+	var configs []openCodeConfig
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var raw map[string]interface{}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			continue
+		}
+
+		config := openCodeConfig{Path: path, Raw: raw}
+		if list, ok := raw["permissions"].([]interface{}); ok {
+			config.Permissions = list
+		}
+		if entries, ok := raw["skills"].([]interface{}); ok {
+			for _, entry := range entries {
+				if id, ok := entry.(string); ok && id != "" {
+					config.SkillIDs = append(config.SkillIDs, id)
+				}
+			}
+		}
+		configs = append(configs, config)
+	}
+
+	return configs
+}
+
+// updateSkillPermission enables or disables a skill by editing permission rules.
+func updateSkillPermission(id string, enable bool) error {
+	configs := readOpenCodeConfigs()
+	if len(configs) == 0 {
+		return fmt.Errorf("no OpenCode config found")
+	}
+
+	// Apply the change to the highest-priority config that declares skills or permissions.
+	for i := len(configs) - 1; i >= 0; i-- {
+		config := configs[i]
+		if _, hasPermissions := config.Raw["permissions"]; !hasPermissions {
+			if len(config.SkillIDs) == 0 {
+				continue
+			}
+		}
+
+		permissions, _ := config.Raw["permissions"].([]interface{})
+		if permissions == nil {
+			permissions = []interface{}{}
+		}
+
+		updated := make([]interface{}, 0, len(permissions)+1)
+		for _, rule := range permissions {
+			if isSkillRule(rule, "deny") && ruleResource(rule) == id {
+				continue
+			}
+			updated = append(updated, rule)
+		}
+
+		if !enable {
+			updated = append(updated, map[string]interface{}{
+				"action":   "skill",
+				"resource": id,
+				"effect":   "deny",
+			})
+		}
+
+		config.Raw["permissions"] = updated
+		out, err := json.MarshalIndent(config.Raw, "", "  ")
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(config.Path, out, 0o644)
+	}
+
+	return fmt.Errorf("skill %q not found in config", id)
+}
+
+func isSkillRule(rule interface{}, effect string) bool {
+	ruleMap, ok := rule.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	action := asString(ruleMap["action"])
+	ruleEffect := asString(ruleMap["effect"])
+	return action == "skill" && ruleEffect == effect
+}
+
+func ruleResource(rule interface{}) string {
+	if ruleMap, ok := rule.(map[string]interface{}); ok {
+		return asString(ruleMap["resource"])
+	}
+	return ""
+}
+
+func matchWildcard(pattern, value string) bool {
+	if !strings.Contains(pattern, "*") {
+		return pattern == value
+	}
+	prefix, suffix, _ := strings.Cut(pattern, "*")
+	return strings.HasPrefix(value, prefix) && strings.HasSuffix(value, suffix)
+}
+
+// configuredPlugins reads plugin IDs from the user's OpenCode config files.
+func (s *OpenCodeService) configuredPlugins() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	paths := []string{
+		filepath.Join(home, ".config", "opencode", "opencode.json"),
+		filepath.Join(home, ".opencode", "opencode.json"),
+	}
+
+	var out []string
+	seen := map[string]bool{}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var config struct {
+			Plugins []interface{} `json:"plugins"`
+		}
+		if err := json.Unmarshal(data, &config); err != nil {
+			continue
+		}
+		for _, entry := range config.Plugins {
+			switch v := entry.(type) {
+			case string:
+				if v != "" && !seen[v] {
+					seen[v] = true
+					out = append(out, v)
+				}
+			case map[string]interface{}:
+				if pkg := asString(v["package"]); pkg != "" && !seen[pkg] {
+					seen[pkg] = true
+					out = append(out, pkg)
+				}
+			}
+		}
+	}
+
+	return out
+}
+
+// updatePluginConfig toggles a plugin in the user config files.
+func updatePluginConfig(id string, enable bool) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	paths := []string{
+		filepath.Join(home, ".config", "opencode", "opencode.json"),
+		filepath.Join(home, ".opencode", "opencode.json"),
+	}
+
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(data, &config); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+
+		plugins, ok := config["plugins"].([]interface{})
+		if !ok {
+			plugins = []interface{}{}
+		}
+
+		var updated []interface{}
+		changed := false
+		for _, entry := range plugins {
+			var packageID string
+			switch v := entry.(type) {
+			case string:
+				packageID = v
+			case map[string]interface{}:
+				packageID = asString(v["package"])
+			}
+
+			if packageID == id {
+				changed = true
+				if enable {
+					updated = append(updated, entry)
+				}
+				continue
+			}
+			updated = append(updated, entry)
+		}
+
+		if !changed {
+			continue
+		}
+
+		config["plugins"] = updated
+		out, err := json.MarshalIndent(config, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, out, 0o644); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return fmt.Errorf("plugin %q not found in config", id)
 }
 
 // serviceClient builds an authenticated client for the running OpenCode2 service.

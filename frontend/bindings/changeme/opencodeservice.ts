@@ -22,10 +22,31 @@ export function Conversation(sessionID: string): $CancellablePromise<$models.Con
 }
 
 /**
+ * Harnesses returns the selectable harnesses/devices, with the local device first.
+ */
+export function Harnesses(): $CancellablePromise<$models.HarnessInfo[] | null> {
+    return $Call.ByID(261249044);
+}
+
+/**
  * IsReady checks whether the OpenCode2 service is running.
  */
 export function IsReady(): $CancellablePromise<$models.OpenCodeStatus> {
     return $Call.ByID(1524974339);
+}
+
+/**
+ * McpServers returns configured MCP servers and their connection status.
+ */
+export function McpServers(): $CancellablePromise<$models.McpInfo[] | null> {
+    return $Call.ByID(2717323160);
+}
+
+/**
+ * Plugins returns configured plugins and whether each one is currently enabled.
+ */
+export function Plugins(): $CancellablePromise<$models.PluginInfo[] | null> {
+    return $Call.ByID(3100470900);
 }
 
 /**
@@ -50,8 +71,36 @@ export function Setup(): $CancellablePromise<$models.OpenCodeStatus> {
 }
 
 /**
+ * Skills returns skills loaded by OpenCode2.
+ */
+export function Skills(): $CancellablePromise<$models.SkillInfo[] | null> {
+    return $Call.ByID(1221379206);
+}
+
+/**
  * Subagents returns child sessions spawned by a parent session.
  */
 export function Subagents(sessionID: string): $CancellablePromise<$models.SubagentInfo[] | null> {
     return $Call.ByID(2593731480, sessionID);
+}
+
+/**
+ * ToggleMcp connects or disconnects an MCP server.
+ */
+export function ToggleMcp(server: string, enable: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3535403916, server, enable);
+}
+
+/**
+ * TogglePlugin enables or disables a plugin in the user config.
+ */
+export function TogglePlugin(id: string, enable: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3137222635, id, enable);
+}
+
+/**
+ * ToggleSkill enables or disables a skill via permission rules.
+ */
+export function ToggleSkill(id: string, enable: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1897423989, id, enable);
 }
