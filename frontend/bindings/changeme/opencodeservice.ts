@@ -22,6 +22,15 @@ export function Conversation(sessionID: string): $CancellablePromise<$models.Con
 }
 
 /**
+ * ConversationPage returns the most recent page of a session transcript.
+ * When nextCursor is provided, it returns the next page of older messages.
+ * Messages are always normalized into oldest-first order.
+ */
+export function ConversationPage(sessionID: string, nextCursor: string): $CancellablePromise<$models.ConversationPage> {
+    return $Call.ByID(105115472, sessionID, nextCursor);
+}
+
+/**
  * Harnesses returns the selectable harnesses/devices, with the local device first.
  */
 export function Harnesses(): $CancellablePromise<$models.HarnessInfo[] | null> {

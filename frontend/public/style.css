@@ -1112,6 +1112,36 @@ button:disabled {
     padding-bottom: 32px;
 }
 
+.trace-history-status {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 0;
+}
+
+.trace-history-more {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0 4px;
+}
+
+.trace-history-button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 150ms, border-color 150ms, background 150ms;
+}
+
+.trace-history-button:hover {
+    color: var(--text);
+    border-color: var(--faint);
+    background: var(--panel-elevated);
+}
+
 .trace-entry {
     display: flex;
     gap: 12px;

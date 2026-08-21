@@ -52,10 +52,15 @@ export default function App() {
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
   const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
   const [subagents, setSubagents] = createSignal<SubagentInfo[]>([]);
+  const [nextCursor, setNextCursor] = createSignal("");
+  const [hasMoreHistory, setHasMoreHistory] = createSignal(false);
+  const [loadingOlder, setLoadingOlder] = createSignal(false);
   const [listLoading, setListLoading] = createSignal(true);
   const [listError, setListError] = createSignal("");
   const [detailLoading, setDetailLoading] = createSignal(false);
   const [detailError, setDetailError] = createSignal("");
+
+  let historyToken = 0;
 
   const projectName = createMemo(() => {
     const map = new Map<string, string>();
@@ -135,36 +140,93 @@ export default function App() {
     if (!id) {
       setMessages([]);
       setSubagents([]);
+      setNextCursor("");
+      setHasMoreHistory(false);
       return;
     }
+
+    const token = ++historyToken;
     setDetailLoading(true);
     setDetailError("");
+    setLoadingOlder(false);
+    setMessages([]);
+    setNextCursor("");
+    setHasMoreHistory(false);
     try {
-      const [messageList, subagentList] = await Promise.all([
-        OpenCodeService.Conversation(id),
+      const [page, subagentList] = await Promise.all([
+        OpenCodeService.ConversationPage(id, ""),
         OpenCodeService.Subagents(id),
       ]);
-      setMessages(messageList ?? []);
+      if (token !== historyToken) return;
+      setMessages(page.messages ?? []);
+      setNextCursor(page.nextCursor ?? "");
+      setHasMoreHistory(page.hasMore);
       setSubagents(subagentList ?? []);
     } catch (err) {
+      if (token !== historyToken) return;
       console.error(err);
       setDetailError(String(err));
     } finally {
-      setDetailLoading(false);
+      if (token === historyToken) {
+        setDetailLoading(false);
+      }
+    }
+  }
+
+  async function loadOlder() {
+    const id = selectedId();
+    if (!id || loadingOlder() || !hasMoreHistory()) return;
+
+    const token = historyToken;
+    setLoadingOlder(true);
+    try {
+      const page = await OpenCodeService.ConversationPage(id, nextCursor());
+      if (token !== historyToken) return;
+      const older = page.messages ?? [];
+      setMessages((current) => {
+        const known = new Set(current.map((m) => m.id));
+        const added = older.filter((m) => !known.has(m.id));
+        return [...added, ...current];
+      });
+      setNextCursor(page.nextCursor ?? "");
+      setHasMoreHistory(page.hasMore);
+    } catch (err) {
+      if (token !== historyToken) return;
+      console.error(err);
+      setDetailError(String(err));
+    } finally {
+      if (token === historyToken) {
+        setLoadingOlder(false);
+      }
+    }
+  }
+
+  async function loadAllHistory() {
+    const token = historyToken;
+    while (token === historyToken && hasMoreHistory()) {
+      const before = nextCursor();
+      await loadOlder();
+      if (nextCursor() === before) break;
     }
   }
 
   function selectSession(id: string) {
     if (id === selectedId()) return;
     setSelectedId(id);
-    loadDetail(id);
+    loadDetail(id).then(() => {
+      loadAllHistory();
+    });
   }
 
   onMount(() => {
     window.addEventListener("keydown", handleKeydown);
     loadList().then(() => {
       const id = selectedId();
-      if (id) loadDetail(id);
+      if (id) {
+        loadDetail(id).then(() => {
+          loadAllHistory();
+        });
+      }
     });
   });
 
@@ -251,6 +313,9 @@ export default function App() {
             messages={messages()}
             subagents={subagents()}
             loading={detailLoading()}
+            loadingOlder={loadingOlder()}
+            hasMoreHistory={hasMoreHistory()}
+            onLoadOlder={loadOlder}
             error={detailError()}
           />
         </main>

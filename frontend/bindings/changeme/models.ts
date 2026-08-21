@@ -21,6 +21,16 @@ export interface ConversationMessage {
 }
 
 /**
+ * ConversationPage is one page of a session transcript, ordered oldest-first.
+ * NextCursor points at the next page of older messages when HasMore is true.
+ */
+export interface ConversationPage {
+    "messages": ConversationMessage[] | null;
+    "nextCursor"?: string;
+    "hasMore": boolean;
+}
+
+/**
  * HarnessInfo describes one selectable harness or device.
  */
 export interface HarnessInfo {

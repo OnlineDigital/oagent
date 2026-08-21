@@ -105,6 +105,14 @@ type ToolCall struct {
 	Completed int64  `json:"completedAt,omitempty"`
 }
 
+// ConversationPage is one page of a session transcript, ordered oldest-first.
+// NextCursor points at the next page of older messages when HasMore is true.
+type ConversationPage struct {
+	Messages   []ConversationMessage `json:"messages"`
+	NextCursor string                `json:"nextCursor,omitempty"`
+	HasMore    bool                  `json:"hasMore"`
+}
+
 // SubagentInfo is a child session that was spawned by a parent session.
 type SubagentInfo struct {
 	ID       string                `json:"id"`
@@ -790,17 +798,73 @@ func (s *OpenCodeService) Conversation(sessionID string) ([]ConversationMessage,
 		return nil, err
 	}
 
-	messages := make([]ConversationMessage, 0, len(response.Data))
-	for _, raw := range response.Data {
+	messages := normalizeMessages(response.Data)
+
+	log.Printf("[opencode2] Conversation returned %d messages for %s", len(messages), sessionID)
+	return messages, nil
+}
+
+// ConversationPage returns the most recent page of a session transcript.
+// When nextCursor is provided, it returns the next page of older messages.
+// Messages are always normalized into oldest-first order.
+func (s *OpenCodeService) ConversationPage(sessionID string, nextCursor string) (ConversationPage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	log.Printf("[opencode2] Conversation page requested for session %s (cursor=%s)", sessionID, nextCursor)
+	client, err := s.serviceClient(ctx)
+	if err != nil {
+		return ConversationPage{}, err
+	}
+
+	query := map[string]string{
+		"limit": "50",
+	}
+	if nextCursor != "" {
+		query["cursor"] = nextCursor
+	}
+
+	response, err := client.V2MessageList(ctx, sessionID, query)
+	if err != nil {
+		log.Printf("[opencode2] Conversation page failed for %s: %v", sessionID, err)
+		return ConversationPage{}, err
+	}
+
+	messages := normalizeMessages(response.Data)
+	reverseInPlace(messages)
+
+	cursor := ""
+	if raw, ok := response.Cursor["next"]; ok {
+		cursor = asString(raw)
+	}
+
+	log.Printf("[opencode2] Conversation page returned %d messages for %s", len(messages), sessionID)
+	return ConversationPage{
+		Messages:   messages,
+		NextCursor: cursor,
+		HasMore:    cursor != "",
+	}, nil
+}
+
+// normalizeMessages converts raw message maps into ConversationMessages,
+// dropping entries that carry no displayable content.
+func normalizeMessages(data []interface{}) []ConversationMessage {
+	messages := make([]ConversationMessage, 0, len(data))
+	for _, raw := range data {
 		message := normalizeMessage(raw)
 		if message.ID == "" && message.Text == "" && len(message.Tools) == 0 && message.Reasoning == "" {
 			continue
 		}
 		messages = append(messages, message)
 	}
+	return messages
+}
 
-	log.Printf("[opencode2] Conversation returned %d messages for %s", len(messages), sessionID)
-	return messages, nil
+// reverseInPlace reverses a slice of ConversationMessages.
+func reverseInPlace(messages []ConversationMessage) {
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
 }
 
 // Subagents returns child sessions spawned by a parent session.

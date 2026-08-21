@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import {
   ConversationMessage,
   SubagentInfo,
@@ -315,8 +315,38 @@ export default function Conversation(props: {
   messages: ConversationMessage[];
   subagents: SubagentInfo[];
   loading: boolean;
+  loadingOlder: boolean;
+  hasMoreHistory: boolean;
+  onLoadOlder: () => void;
   error: string;
 }) {
+  let body: HTMLDivElement | undefined;
+  let previousSession: string | undefined;
+  let previousCount = 0;
+
+  createEffect(() => {
+    const sessionId = props.session?.id;
+    const count = props.messages.length;
+
+    if (!body) return;
+    if (sessionId !== previousSession) {
+      previousSession = sessionId;
+      previousCount = count;
+      requestAnimationFrame(() => {
+        body!.scrollTop = body!.scrollHeight;
+      });
+      return;
+    }
+
+    if (count > previousCount) {
+      const previousHeight = body.scrollHeight;
+      requestAnimationFrame(() => {
+        body!.scrollTop += body!.scrollHeight - previousHeight;
+      });
+    }
+    previousCount = count;
+  });
+
   return (
     <div class="conversation">
       <div class="conversation-header">
@@ -340,7 +370,7 @@ export default function Conversation(props: {
         </div>
       </div>
 
-      <div class="conversation-body">
+      <div class="conversation-body" ref={body}>
         <Show when={props.loading}>
           <div class="conversation-empty">Loading conversation…</div>
         </Show>
@@ -351,6 +381,18 @@ export default function Conversation(props: {
 
         <Show when={!props.loading && !props.error}>
           <div class="trace-list">
+            <Show when={props.loadingOlder}>
+              <div class="trace-history-status">Loading earlier messages…</div>
+            </Show>
+
+            <Show when={!props.loadingOlder && props.hasMoreHistory}>
+              <div class="trace-history-more">
+                <button type="button" class="trace-history-button" onClick={props.onLoadOlder}>
+                  Load earlier messages
+                </button>
+              </div>
+            </Show>
+
             <For each={props.messages}>
               {(message) => {
                 if (message.role === "user") return <UserMessage message={message} />;

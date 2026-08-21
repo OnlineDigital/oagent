@@ -8,6 +8,7 @@ export {
 
 export type {
     ConversationMessage,
+    ConversationPage,
     HarnessInfo,
     McpInfo,
     OpenCodeStatus,
